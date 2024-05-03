@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:note_taking_app/models/note.dart';
+import 'package:note_taking_app/models/note_sheet.dart';
 
 class EditScreen extends StatefulWidget {
-  final Note? note;
+  final NoteSheet? note;
   const EditScreen({super.key, this.note});
 
   @override

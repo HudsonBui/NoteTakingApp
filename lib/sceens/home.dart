@@ -4,8 +4,9 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:note_taking_app/constants/colors.dart';
-import 'package:note_taking_app/models/note.dart';
+import 'package:note_taking_app/models/note_sheet.dart';
 import 'package:note_taking_app/sceens/edit.dart';
+import 'package:realm/realm.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,20 +16,24 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<Note> filteredNotes = [];
+  var realm;
+
+  List<NoteSheet> filteredNotes = [];
   bool sorted = false;
 
   @override
   void initState() {
     super.initState();
-    filteredNotes = sampleNotes;
+    var config = Configuration.local([NoteSheet.schema]);
+    realm = Realm(config);
+    filteredNotes = realm.all<NoteSheet>().toList();
   }
 
-  List<Note> sortNotesByModifiedTime(List<Note> notes) {
+  List<NoteSheet> sortNotesByModifiedTime(List<NoteSheet> notes) {
     if (sorted) {
-      notes.sort((a, b) => a.modifiedTime.compareTo(b.modifiedTime));
+      notes.sort((a, b) => a.title.compareTo(b.title));
     } else {
-      notes.sort((b, a) => a.modifiedTime.compareTo(b.modifiedTime));
+      notes.sort((b, a) => a.title.compareTo(b.title));
     }
 
     sorted = !sorted;
@@ -43,7 +48,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void onSearchTextChanged(String searchText) {
     setState(() {
-      filteredNotes = sampleNotes
+      filteredNotes = realm
+          .all<NoteSheet>()
           .where((note) =>
               note.content.toLowerCase().contains(searchText.toLowerCase()) ||
               note.title.toLowerCase().contains(searchText.toLowerCase()))
@@ -53,9 +59,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void deleteNote(int index) {
     setState(() {
-      Note note = filteredNotes[index];
-      sampleNotes.remove(note);
-      filteredNotes = sampleNotes;
+      NoteSheet note = filteredNotes[index];
+      realm.write(() {
+        realm.delete(note);
+      });
+      filteredNotes = realm.all<NoteSheet>().toList();
       //filteredNotes.removeAt(index);
     });
   }
@@ -121,7 +129,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 20,),
+            const SizedBox(
+              height: 20,
+            ),
             Expanded(
                 child: ListView.builder(
               padding: const EdgeInsets.only(top: 30),
@@ -146,20 +156,25 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                         if (result != null) {
                           setState(() {
-                            int originalIndex =
-                                sampleNotes.indexOf(filteredNotes[index]);
+                            //TODO: Check the result
+                            NoteSheet originalNote = filteredNotes[index];
+                            // int originalIndex = realm
+                            //     .all<NoteSheet>()
+                            //     .indexOf(filteredNotes[index]);
 
-                            sampleNotes[originalIndex] = Note(
-                                id: sampleNotes[originalIndex].id,
-                                title: result[0],
-                                content: result[1],
-                                modifiedTime: DateTime.now());
-                                
-                            filteredNotes[index] = Note(
-                                id: filteredNotes[index].id,
-                                title: result[0],
-                                content: result[1],
-                                modifiedTime: DateTime.now());
+                            NoteSheet updatedNote = NoteSheet(originalNote.id,
+                                result[0], result[1], DateTime.now());
+
+                            realm.write(() {
+                              realm.add<NoteSheet>(
+                                  realm.add<NoteSheet>(updatedNote, update: true));
+                            });
+
+                            filteredNotes[index] = NoteSheet(
+                                filteredNotes[index].id,
+                                result[0],
+                                result[1],
+                                DateTime.now());
                           });
                         }
                       },
@@ -218,18 +233,23 @@ class _HomeScreenState extends State<HomeScreen> {
           final result = await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (BuildContext context) => const EditScreen(),
+              builder: (BuildContext context) => EditScreen(),
             ),
           );
 
           if (result != null) {
             setState(() {
-              sampleNotes.add(Note(
-                  id: sampleNotes.length,
-                  title: result[0],
-                  content: result[1],
-                  modifiedTime: DateTime.now()));
-              filteredNotes = sampleNotes;
+              NoteSheet addedNote = NoteSheet(ObjectId(), result[0], result[1], DateTime.now());
+              realm.write((){
+                realm.add<NoteSheet>(addedNote);
+              });
+              filteredNotes = realm.all<NoteSheet>().toList();
+              // sampleNotes.add(Note(
+              //     id: sampleNotes.length,
+              //     title: result[0],
+              //     content: result[1],
+              //     modifiedTime: DateTime.now()));
+              // filteredNotes = sampleNotes;
             });
           }
         },
